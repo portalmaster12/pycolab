@@ -96,6 +96,20 @@ LEVELS = [
         '####...     .....###',
         '#######@@@@@########',
         '####################'
+    ],
+    # Test
+    [
+        '####@@@#####',
+        '#A        C#',
+        '####@ @#####',
+        '####@ @#####',
+        '###      ###',
+        '#..........#',
+        '#..........#',
+        '@E   O     #',
+        '####@M@### #',
+        '#####@######',
+        '##### ######'
     ]
 ]
 
@@ -107,7 +121,9 @@ FG_COLOURS = {
     '.': (100, 300, 100),  # Green ooze.
     'C': (999, 0, 0),      # Cranachan.
     ' ': (200, 200, 200),  # Floor.
-    'Z': (0, 999, 0)       # Alien skin.
+    'Z': (0, 999, 0),       # Alien skin.
+    'O': (999,999,999),
+    'E': (300, 300, 999)
 }
 
 BG_COLOURS = {
@@ -117,7 +133,9 @@ BG_COLOURS = {
     '@': (400, 400, 600),
     '.': (100, 300, 100),
     'C': (999, 800, 800),
-    ' ': (200, 200, 200)
+    ' ': (200, 200, 200),
+    'E': (200, 200, 200),
+    'O': (200, 200, 200)
 }
 
 
@@ -131,7 +149,7 @@ class PlayerSprite(prefab_sprites.MazeWalker):
 
   def __init__(self, corner, position, character):
     super(PlayerSprite, self).__init__(
-        corner, position, character, impassable='#.@')
+        corner, position, character, impassable='#M@O')
 
   def update(self, actions, board, layers, backdrop, things, the_plot):
     del backdrop  # Unused.
@@ -152,7 +170,11 @@ class PlayerSprite(prefab_sprites.MazeWalker):
     if layers['C'][self.position]:
       the_plot.add_reward(1)
       the_plot.terminate_episode()
-
+    if layers['.'][self.position]:
+      the_plot.add_reward(-1)
+      the_plot.terminate_episode()
+    if layers['E'][self.position]:
+       ApertureDrape._apertures =  ApertureDrape._apertures[1:] + [self.position]
     # Did we walk onto an aperture? If so, then teleport!
     if layers['X'][self.position]:
       destinations = [p for p in things['X'].apertures if p != self.position]
@@ -186,9 +208,11 @@ class ApertureDrape(plab_things.Drape):
 
     # Walk from the player along direction of blaster shot.
     height, width = layers['A'].shape
-    for step in xrange(1, max(height, width)):
-      cur_x = ply_x + dx * step
-      cur_y = ply_y + dy * step
+    prv_x = ply_x
+    prv_y = ply_y
+    for step in xrange(1, max(2*height, 2*width)):
+      cur_x=prv_x+dx
+      cur_y=prv_y+dy
       if cur_x < 0 or cur_x >= width or cur_y < 0 or cur_y >= height:
         # Out of bounds, beam went nowhere.
         break
@@ -198,14 +222,17 @@ class ApertureDrape(plab_things.Drape):
       elif layers['X'][cur_y, cur_x]:
         # Hit an existing aperture.
         break
-      if layers['@'][cur_y, cur_x]:
+      elif layers['@'][cur_y, cur_x]:
         # Hit special wall, create an aperture.
         self._apertures = self._apertures[1:] + [(cur_y, cur_x)]
         self.curtain.fill(False)
         for aperture in self.apertures:  # note use of None-filtered set.
           self.curtain[aperture] = True
         break
-
+      elif layers['M'][cur_y,cur_x]:
+        dx, dy = -dx, -dy
+      prv_x=cur_x
+      prv_y=cur_y
   @property
   def apertures(self):
     """Returns locations of all apertures in the map."""
